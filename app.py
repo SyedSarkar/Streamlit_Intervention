@@ -18,11 +18,10 @@ HEADERS = ["timestamp", "user", "phase", "cue", "sentence", "response", "sentime
 
 @st.cache_resource
 def connect_to_sheet():
-    scope = ["https://spreadsheets.google.com/feeds",
-             "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    creds_json = json.loads(st.secrets["GOOGLE_CREDENTIALS_JSON"])
+    creds = Credentials.from_service_account_info(creds_json, scopes=["https://www.googleapis.com/auth/spreadsheets"])
     client = gspread.authorize(creds)
-    sheet = client.open("Intervention_Results").sheet1  # Replace with your Google Sheet name
+    sheet = client.open("Intervention_Results").sheet1
     return sheet
 
 def log_to_gsheet(row_dict):
