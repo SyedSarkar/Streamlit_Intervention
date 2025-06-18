@@ -1,0 +1,7 @@
+streamlit
+pandas
+matplotlib
+transformers
+nltk
+gspread
+oauth2client
