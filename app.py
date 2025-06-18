@@ -30,7 +30,7 @@ def connect_to_sheet():
     )
     client = gspread.authorize(creds)
     files = client.list_spreadsheet_files()  # Now this will work
-    st.write("Sheets accessible:", files)
+    #st.write("Sheets accessible:", files)
     return client.open("Intervention_Results").sheet1
 
 def log_to_gsheet(row_dict):
