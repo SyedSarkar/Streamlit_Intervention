@@ -23,11 +23,13 @@ def connect_to_sheet():
     creds_json = json.loads(st.secrets["GOOGLE_CREDENTIALS_JSON"])
     creds = Credentials.from_service_account_info(
         creds_json,
-        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+        scopes=[
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"   # ✅ Add this
+        ]
     )
     client = gspread.authorize(creds)
-    # List all files to check access
-    files = client.list_spreadsheet_files()
+    files = client.list_spreadsheet_files()  # Now this will work
     st.write("Sheets accessible:", files)
     return client.open("Intervention_Results").sheet1
 
