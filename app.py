@@ -44,10 +44,7 @@ nltk.download('words')
 english_vocab = set(w.lower() for w in words.words())
 
 STOPWORDS = {
-    'a', 'an', 'the', 'and', 'or', 'but', 'on', 'in', 'with', 'to', 'from', 'by',
-    'of', 'for', 'at', 'as', 'is', 'it', 'this', 'that', 'these', 'those', 'i', 'you',
-    'he', 'she', 'we', 'they', 'them', 'me', 'my', 'your', 'his', 'her', 'its', 'our', 'their',
-    'be', 'am', 'are', 'was', 'were', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did'
+    'Hassan', 'Asim', 'Ather'
 }
 
 def looks_like_gibberish(word):
