@@ -128,7 +128,7 @@ if st.session_state.phase == 0:
     st.markdown("""
     Welcome to this two-phase task designed to encourage positive associations and emotional reflection.
 
-    - **Phase 1**: Respond to single cue words with uplifting phrases.
+    - **Phase 1**: Respond to single cue words with positive and uplifting phrases.
     - **Phase 2**: React to full sentences with encouraging responses.
     - Avoid repeats and generic prepositions.
     """)
@@ -183,13 +183,13 @@ if st.session_state.phase == 1:
             }
 
             if not is_valid_response(phrase, cue):
-                feedback.markdown(format_feedback("❌ Invalid input!", "red"), unsafe_allow_html=True)
+                feedback.markdown(format_feedback("❌ Invalid input! Please write something esle", "red"), unsafe_allow_html=True)
                 time.sleep(2)
             elif phrase in st.session_state.used_texts:
-                feedback.markdown(format_feedback("⚠️ Already used!", "orange"), unsafe_allow_html=True)
+                feedback.markdown(format_feedback("⚠️ Already used! Kindly use a different word", "orange"), unsafe_allow_html=True)
                 time.sleep(2)
             elif label == "NEGATIVE":
-                feedback.markdown(format_feedback("❌ Negative! Try again.", "red"), unsafe_allow_html=True)
+                feedback.markdown(format_feedback("❌ Negative word detected! Try again.", "red"), unsafe_allow_html=True)
                 time.sleep(2)
             else:
                 entry["score"] = score
@@ -206,7 +206,7 @@ if st.session_state.phase == 1:
             pd.DataFrame(st.session_state.responses).to_csv(f"results/{safe_id}.csv", index=False)
             log_to_gsheet(entry)  # <-- Logging to Google Sheet
 
-        st.text_input("Type a related uplifting phrase (up to 3 words):", key=f"input_{st.session_state.step}", on_change=handle_input)
+        st.text_input("Type a related uplifting and positive phrase (up to 3 words):", key=f"input_{st.session_state.step}", on_change=handle_input)
 
     else:
         st.success("🎉 Congratulations Phase 1 Complete!")
@@ -251,10 +251,10 @@ elif st.session_state.phase == 2:
             }
 
             if not is_valid_response(phrase, sentence):
-                feedback.markdown(format_feedback("❌ Invalid input!", "red"), unsafe_allow_html=True)
+                feedback.markdown(format_feedback("❌ Invalid input! Please try something else", "red"), unsafe_allow_html=True)
                 time.sleep(2)
             elif phrase in st.session_state.used_texts:
-                feedback.markdown(format_feedback("⚠️ Already used!", "orange"), unsafe_allow_html=True)
+                feedback.markdown(format_feedback("⚠️ Already used! Kindly use something different.", "orange"), unsafe_allow_html=True)
                 time.sleep(2)
             elif label == "NEGATIVE":
                 feedback.markdown(format_feedback("❌ Negative! Try again.", "red"), unsafe_allow_html=True)
@@ -288,8 +288,8 @@ elif st.session_state.phase == 3:
     df = pd.DataFrame(st.session_state.responses)
     st.dataframe(df)
 
-    with st.expander("📊 Analytics Dashboard"):
-        st.subheader("Confidence Over Time")
+    with st.expander("📊 Click to see Analytics Dashboard"):
+        st.subheader("AI Confidence Over Time")
         df["step"] = range(1, len(df) + 1)
         min_step, max_step = st.slider("Select step range:", int(df["step"].min()), int(df["step"].max()), (int(df["step"].min()), int(df["step"].max())))
         filtered_df = df[(df["step"] >= min_step) & (df["step"] <= max_step)]
