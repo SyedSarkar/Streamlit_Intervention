@@ -43,10 +43,6 @@ def log_to_gsheet(row_dict):
 nltk.download('words')
 english_vocab = set(w.lower() for w in words.words())
 
-STOPWORDS = {
-    'Hassan', 'Asim', 'Ather'
-}
-
 def looks_like_gibberish(word):
     return (
         len(word) < 2 or
@@ -62,7 +58,7 @@ def is_valid_response(response, cue_word):
     if not 1 <= len(tokens) <= 3:
         return False
     for token in tokens:
-        if token == cue_word.lower() or token in STOPWORDS or looks_like_gibberish(token):
+        if token == cue_word.lower() or token in looks_like_gibberish(token):
             return False
     return True
 
