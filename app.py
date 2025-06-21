@@ -37,18 +37,19 @@ def log_to_gsheet(row_dict):
 # Download NLTK resources
 nltk.download('brown')
 nltk.download('words')
-english_vocab = set(w.lower() for w in brown.words())  # Use Brown corpus for larger vocabulary
+english_vocab = set(w.lower() for w in brown.words())  # Use Brown corpus for reference
 
 STOPWORDS = {'Hassan', 'Asim', 'Ather'}
 
 def looks_like_gibberish(word):
+    # Relaxed check: Allow short words if they are alpha and not extreme repeats
     return (
-        len(word) < 2 or
+        len(word) < 1 or  # Minimum length of 1
         not word.isalpha() or
-        re.fullmatch(r"(.)\1{2,}", word) or
-        re.search(r'[aeiou]{3,}', word) or
-        re.search(r'[zxcvbnm]{4,}', word) or
-        word not in english_vocab
+        re.fullmatch(r"(.)\1{3,}", word) or  # Only reject extreme repeats (3+)
+        re.search(r'[aeiou]{4,}', word) or  # Reduce vowel threshold
+        re.search(r'[zxcvbnm]{5,}', word) or  # Reduce consonant threshold
+        (len(word) < 3 and word not in english_vocab and not any(c.isupper() for c in word))  # Allow short words with some flexibility
     )
 
 def is_valid_response(response, cue_word):
@@ -179,7 +180,7 @@ if st.session_state.phase == 1:
             # Fallback for "a nice person"
             if phrase == "a nice person" and label == "NEGATIVE":
                 label = "POSITIVE"
-                conf = 0.9  # Arbitrary high confidence for override
+                conf = 0.9
 
             entry = {
                 "timestamp": str(datetime.datetime.now()),
@@ -196,14 +197,15 @@ if st.session_state.phase == 1:
                 "accepted": False
             }
 
-            if not is_valid_response(phrase, cue):
-                feedback.markdown(format_feedback("❌ Invalid input! Please write something else", "#c0392b"), unsafe_allow_html=True)
-                time.sleep(2)
-            elif phrase in st.session_state.used_texts:
+            # Allow acceptance if sentiment is POSITIVE with high confidence, even if is_valid_response fails
+            if phrase in st.session_state.used_texts:
                 feedback.markdown(format_feedback("⚠️ Already used! Kindly use a different word", "#e67e22"), unsafe_allow_html=True)
                 time.sleep(2)
             elif label == "NEGATIVE":
                 feedback.markdown(format_feedback("❌ Negative word detected! Try again.", "#c0392b"), unsafe_allow_html=True)
+                time.sleep(2)
+            elif not is_valid_response(phrase, cue) and label != "POSITIVE":
+                feedback.markdown(format_feedback("❌ Invalid input! Please write something else", "#c0392b"), unsafe_allow_html=True)
                 time.sleep(2)
             else:
                 entry["score"] = score
@@ -253,7 +255,7 @@ elif st.session_state.phase == 2:
             # Fallback for "a nice person"
             if phrase == "a nice person" and label == "NEGATIVE":
                 label = "POSITIVE"
-                conf = 0.9  # Arbitrary high confidence for override
+                conf = 0.9
 
             entry = {
                 "timestamp": str(datetime.datetime.now()),
@@ -270,14 +272,15 @@ elif st.session_state.phase == 2:
                 "accepted": False
             }
 
-            if not is_valid_response(phrase, sentence):
-                feedback.markdown(format_feedback("❌ Invalid input! Please try something else", "#c0392b"), unsafe_allow_html=True)
-                time.sleep(2)
-            elif phrase in st.session_state.used_texts:
+            # Allow acceptance if sentiment is POSITIVE with high confidence, even if is_valid_response fails
+            if phrase in st.session_state.used_texts:
                 feedback.markdown(format_feedback("⚠️ Already used! Kindly use something different.", "#e67e22"), unsafe_allow_html=True)
                 time.sleep(2)
             elif label == "NEGATIVE":
                 feedback.markdown(format_feedback("❌ Negative! Try again.", "#c0392b"), unsafe_allow_html=True)
+                time.sleep(2)
+            elif not is_valid_response(phrase, sentence) and label != "POSITIVE":
+                feedback.markdown(format_feedback("❌ Invalid input! Please try something else", "#c0392b"), unsafe_allow_html=True)
                 time.sleep(2)
             else:
                 entry["score"] = score
