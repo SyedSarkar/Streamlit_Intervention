@@ -2,20 +2,17 @@ import json
 import streamlit as st
 import os
 import pandas as pd
-import matplotlib.pyplot as plt
 import re
 import time
 from transformers.pipelines import pipeline
-import string
 import nltk
-from nltk.corpus import words
+from nltk.corpus import brown
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 from google.oauth2.service_account import Credentials
 import datetime
 
 # ---- Google Sheets Setup ----
-HEADERS = ["timestamp", "user", "phase", "cue", "sentence", "response", "sentiment",
+HEADERS = ["timestamp", "user", "specific_id", "phase", "cue", "sentence", "response", "sentiment",
            "confidence", "score", "response_time_sec", "accepted"]
 
 @st.cache_resource
@@ -25,12 +22,10 @@ def connect_to_sheet():
         creds_json,
         scopes=[
             "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"   # ✅ Add this
+            "https://www.googleapis.com/auth/drive"
         ]
     )
     client = gspread.authorize(creds)
-    #files = client.list_spreadsheet_files()  # Now this will work
-    #st.write("Sheets accessible:", files)
     return client.open("Intervention_Results").sheet1
 
 def log_to_gsheet(row_dict):
@@ -39,13 +34,12 @@ def log_to_gsheet(row_dict):
     sheet.append_row(row)
 # ----------------------------------
 
-# Download NLTK words if not already downloaded
+# Download NLTK resources
+nltk.download('brown')
 nltk.download('words')
-english_vocab = set(w.lower() for w in words.words())
+english_vocab = set(w.lower() for w in brown.words())  # Use Brown corpus for larger vocabulary
 
-STOPWORDS = {
-    'Hassan', 'Asim', 'Ather'
-}
+STOPWORDS = {'Hassan', 'Asim', 'Ather'}
 
 def looks_like_gibberish(word):
     return (
@@ -73,18 +67,17 @@ def calculate_score(label):
 
 def format_cue_word(cue):
     return f"""
-    <div style='text-align: center; font-size: 32px; font-weight: bold; color: #010d1a; padding: 20px;'>
+    <div style='text-align: center; font-size: 36px; font-weight: bold; color: #010d1a; padding: 20px;'>
         {cue}
     </div>
     """
 
 def format_feedback(msg, color):
     return f"""
-    <div style='text-align: center; font-size: 24px; font-weight: bold; color: {color}; padding: 10px;'>
+    <div style='text-align: center; font-size: 28px; font-weight: bold; color: {color}; padding: 10px;'>
         {msg}
     </div>
     """
-
 
 def get_safe_progress(current, total):
     if total == 0:
@@ -107,18 +100,23 @@ with open("data/sentences.txt", "r") as f:
 
 if "phase" not in st.session_state:
     st.session_state.user_id = ""
+    st.session_state.specific_id = ""
     st.session_state.phase = 0
     st.session_state.step = 0
     st.session_state.score = 0
     st.session_state.used_texts = set()
     st.session_state.responses = []
     st.session_state.start_time = None
+    st.session_state.badges = []
 
 st.markdown("""
 <style>
 body {
     background-color: #f6f9fc;
-    color: #333;
+    color: #222;
+}
+.stTextInput > div > div > input {
+    font-size: 18px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -133,8 +131,10 @@ if st.session_state.phase == 0:
     - Avoid repeats and generic prepositions.
     """)
     user_input = st.text_input("Enter your Name or Roll Number:")
-    if st.button("Start Task") and user_input.strip():
+    specific_id = st.text_input("Enter your Study Participant ID:")
+    if st.button("Start Task") and user_input.strip() and specific_id.strip():
         st.session_state.user_id = user_input.strip()
+        st.session_state.specific_id = specific_id.strip()
         safe_id = re.sub(r'[^\w\-]', '_', user_input.strip())
         filename = f"results/{safe_id}.csv"
         if os.path.exists(filename):
@@ -151,6 +151,14 @@ if st.session_state.phase == 0:
 if st.session_state.phase == 1:
     st.progress(get_safe_progress(st.session_state.step, len(cue_words)))
     st.markdown(f"**Points**: `{st.session_state.score}` | **Responses**: `{len(st.session_state.used_texts)}`")
+    
+    # Display badges
+    if len(st.session_state.used_texts) >= 10 and "10 Responses" not in st.session_state.badges:
+        st.session_state.badges.append("10 Responses")
+        st.success("🏅 Badge Earned: 10 Positive Responses!")
+    if st.session_state.step >= len(cue_words) and "Phase 1 Master" not in st.session_state.badges:
+        st.session_state.badges.append("Phase 1 Master")
+        st.success("🏆 Badge Earned: Phase 1 Master!")
 
     if st.session_state.step < len(cue_words):
         cue = cue_words[st.session_state.step]
@@ -171,6 +179,7 @@ if st.session_state.phase == 1:
             entry = {
                 "timestamp": str(datetime.datetime.now()),
                 "user": st.session_state.user_id,
+                "specific_id": st.session_state.specific_id,
                 "phase": 1,
                 "cue": cue,
                 "sentence": "",
@@ -183,13 +192,13 @@ if st.session_state.phase == 1:
             }
 
             if not is_valid_response(phrase, cue):
-                feedback.markdown(format_feedback("❌ Invalid input! Please write something esle", "red"), unsafe_allow_html=True)
+                feedback.markdown(format_feedback("❌ Invalid input! Please write something else", "#c0392b"), unsafe_allow_html=True)
                 time.sleep(2)
             elif phrase in st.session_state.used_texts:
-                feedback.markdown(format_feedback("⚠️ Already used! Kindly use a different word", "orange"), unsafe_allow_html=True)
+                feedback.markdown(format_feedback("⚠️ Already used! Kindly use a different word", "#e67e22"), unsafe_allow_html=True)
                 time.sleep(2)
             elif label == "NEGATIVE":
-                feedback.markdown(format_feedback("❌ Negative word detected! Try again.", "red"), unsafe_allow_html=True)
+                feedback.markdown(format_feedback("❌ Negative word detected! Try again.", "#c0392b"), unsafe_allow_html=True)
                 time.sleep(2)
             else:
                 entry["score"] = score
@@ -198,13 +207,13 @@ if st.session_state.phase == 1:
                 st.session_state.used_texts.add(phrase)
                 st.session_state.step += 1
                 st.session_state.start_time = None
-                feedback.markdown(format_feedback(f"✅ Sentiment: {label} ({conf:.2f}) | Score +{score}", "green"), unsafe_allow_html=True)
+                feedback.markdown(format_feedback(f"✅ Sentiment: {label} ({conf:.2f}) | Score +{score}", "#27ae60"), unsafe_allow_html=True)
                 time.sleep(2)
 
             st.session_state.responses.append(entry)
             safe_id = re.sub(r'[^\w\-]', '_', st.session_state.user_id)
             pd.DataFrame(st.session_state.responses).to_csv(f"results/{safe_id}.csv", index=False)
-            log_to_gsheet(entry)  # <-- Logging to Google Sheet
+            log_to_gsheet(entry)
 
         st.text_input("Type a related uplifting and positive phrase (up to 3 words):", key=f"input_{st.session_state.step}", on_change=handle_input)
 
@@ -239,6 +248,7 @@ elif st.session_state.phase == 2:
             entry = {
                 "timestamp": str(datetime.datetime.now()),
                 "user": st.session_state.user_id,
+                "specific_id": st.session_state.specific_id,
                 "phase": 2,
                 "cue": "",
                 "sentence": sentence,
@@ -251,13 +261,13 @@ elif st.session_state.phase == 2:
             }
 
             if not is_valid_response(phrase, sentence):
-                feedback.markdown(format_feedback("❌ Invalid input! Please try something else", "red"), unsafe_allow_html=True)
+                feedback.markdown(format_feedback("❌ Invalid input! Please try something else", "#c0392b"), unsafe_allow_html=True)
                 time.sleep(2)
             elif phrase in st.session_state.used_texts:
-                feedback.markdown(format_feedback("⚠️ Already used! Kindly use something different.", "orange"), unsafe_allow_html=True)
+                feedback.markdown(format_feedback("⚠️ Already used! Kindly use something different.", "#e67e22"), unsafe_allow_html=True)
                 time.sleep(2)
             elif label == "NEGATIVE":
-                feedback.markdown(format_feedback("❌ Negative! Try again.", "red"), unsafe_allow_html=True)
+                feedback.markdown(format_feedback("❌ Negative! Try again.", "#c0392b"), unsafe_allow_html=True)
                 time.sleep(2)
             else:
                 entry["score"] = score
@@ -266,17 +276,20 @@ elif st.session_state.phase == 2:
                 st.session_state.used_texts.add(phrase)
                 st.session_state.step += 1
                 st.session_state.start_time = None
-                feedback.markdown(format_feedback(f"✅ Sentiment: {label} ({conf:.2f}) | Score +{score}", "green"), unsafe_allow_html=True)
+                feedback.markdown(format_feedback(f"✅ Sentiment: {label} ({conf:.2f}) | Score +{score}", "#27ae60"), unsafe_allow_html=True)
                 time.sleep(2)
 
             st.session_state.responses.append(entry)
             safe_id = re.sub(r'[^\w\-]', '_', st.session_state.user_id)
             pd.DataFrame(st.session_state.responses).to_csv(f"results/{safe_id}.csv", index=False)
-            log_to_gsheet(entry)  # <-- Logging to Google Sheet
+            log_to_gsheet(entry)
 
         st.text_input("Respond with a positive phrase:", key=f"input_s2_{st.session_state.step}", on_change=handle_input_2)
 
     else:
+        if "Intervention Champion" not in st.session_state.badges:
+            st.session_state.badges.append("Intervention Champion")
+            st.success("🏆 Badge Earned: Intervention Champion!")
         st.session_state.step = 0
         st.session_state.phase = 3
         st.rerun()
@@ -294,15 +307,71 @@ elif st.session_state.phase == 3:
         min_step, max_step = st.slider("Select step range:", int(df["step"].min()), int(df["step"].max()), (int(df["step"].min()), int(df["step"].max())))
         filtered_df = df[(df["step"] >= min_step) & (df["step"] <= max_step)]
 
-        fig1, ax1 = plt.subplots()
-        filtered_df.plot(x="step", y="confidence", ax=ax1, color="green", marker='o')
-        st.pyplot(fig1)
+        # Chart.js for AI Confidence
+        chart_data = {
+            "type": "line",
+            "data": {
+                "labels": filtered_df["step"].tolist(),
+                "datasets": [{
+                    "label": "AI Confidence",
+                    "data": filtered_df["confidence"].tolist(),
+                    "borderColor": "#27ae60",
+                    "backgroundColor": "rgba(39, 174, 96, 0.2)",
+                    "fill": True,
+                    "tension": 0.4
+                }]
+            },
+            "options": {
+                "scales": {
+                    "x": {"title": {"display": True, "text": "Step"}},
+                    "y": {"title": {"display": True, "text": "Confidence"}, "min": 0, "max": 1}
+                },
+                "plugins": {
+                    "title": {"display": True, "text": "AI Confidence Over Time"}
+                }
+            }
+        }
+        st.markdown(f"""
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <canvas id="confidenceChart"></canvas>
+        <script>
+            const ctx1 = document.getElementById('confidenceChart').getContext('2d');
+            new Chart(ctx1, {json.dumps(chart_data)});
+        </script>
+        """, unsafe_allow_html=True)
 
         st.subheader("Score Over Time")
         filtered_df["cumulative"] = filtered_df["score"].cumsum()
-        fig2, ax2 = plt.subplots()
-        filtered_df.plot(x="step", y="cumulative", ax=ax2, color="blue", marker='o')
-        st.pyplot(fig2)
+        chart_data_score = {
+            "type": "line",
+            "data": {
+                "labels": filtered_df["step"].tolist(),
+                "datasets": [{
+                    "label": "Cumulative Score",
+                    "data": filtered_df["cumulative"].tolist(),
+                    "borderColor": "#3498db",
+                    "backgroundColor": "rgba(52, 152, 219, 0.2)",
+                    "fill": True,
+                    "tension": 0.4
+                }]
+            },
+            "options": {
+                "scales": {
+                    "x": {"title": {"display": True, "text": "Step"}},
+                    "y": {"title": {"display": True, "text": "Cumulative Score"}}
+                },
+                "plugins": {
+                    "title": {"display": True, "text": "Score Over Time"}
+                }
+            }
+        }
+        st.markdown(f"""
+        <canvas id="scoreChart"></canvas>
+        <script>
+            const ctx2 = document.getElementById('scoreChart').getContext('2d');
+            new Chart(ctx2, {json.dumps(chart_data_score)});
+        </script>
+        """, unsafe_allow_html=True)
 
     st.download_button("Download Results", df.to_csv(index=False).encode(), file_name=f"{st.session_state.user_id}_results.csv")
 
